@@ -1,0 +1,3 @@
+/* Global reset for index.css — App.css handles all design tokens */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0d14; }
