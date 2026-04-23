@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import { processText as processTextApi } from '../api/aiApi';
 import { getVocab, checkWords as checkWordsApi, saveWords as saveWordsApi } from '../api/vocabApi';
+import { getLibrary, uploadBook as uploadBookApi, updateProgress as updateProgressApi, deleteBook as deleteBookApi } from '../api/libraryApi';
 
 const useAppStore = create((set, get) => ({
   // PDF state
   pdfFile: null,
+  pdfInstance: null, // needed to calculate page indexes from outline destinations
   numPages: 0,
   currentPage: 1,
+  outline: null, // Extracted Table of Contents data
 
   // Selection state
   selectedText: '',
@@ -25,11 +28,21 @@ const useAppStore = create((set, get) => ({
   saving: false,
   notification: null, // { type: 'success'|'error', message }
   savedVocabModalVisible: false,
+  tocVisible: false,
+  scanActive: false,
+  
+  // Library state
+  library: [], // Array of books
+  currentBook: null, // Active book object
+  viewMode: 'library', // 'library' | 'reader'
+
   
   // --- Actions ---
 
   setPdfFile: (file) => set({ pdfFile: file }),
+  setPdfInstance: (pdf) => set({ pdfInstance: pdf }),
   setNumPages: (n) => set({ numPages: n }),
+  setOutline: (data) => set({ outline: data }),
   setCurrentPage: (n) => set({ currentPage: n }),
 
   setSelectedText: (text) => set({ selectedText: text }),
@@ -73,6 +86,80 @@ const useAppStore = create((set, get) => ({
 
   toggleSavedVocabModal: () => 
     set((state) => ({ savedVocabModalVisible: !state.savedVocabModalVisible })),
+  
+// --- Actions ---
+
+  setPdfFile: (file) => set({ pdfFile: file }),
+  setPdfInstance: (pdf) => set({ pdfInstance: pdf }),
+  
+  loadLibrary: async () => {
+    try {
+      const data = await getLibrary();
+      set({ library: data });
+    } catch {
+      get().showNotification('error', 'Failed to load library.');
+    }
+  },
+
+  uploadBook: async (file) => {
+    set({ loading: true });
+    try {
+      const newBook = await uploadBookApi(file);
+      await get().loadLibrary();
+      get().showNotification('success', 'Book added to library!');
+      
+      // Auto open newly uploaded book
+      set({ 
+        currentBook: newBook, 
+        pdfFile: `/uploads/${newBook.filename}`,
+        viewMode: 'reader',
+        loading: false 
+      });
+    } catch (err) {
+      set({ loading: false });
+      get().showNotification('error', err?.response?.data?.error || 'Failed to upload PDF.');
+    }
+  },
+
+  openBook: (book) => {
+    set({ 
+      currentBook: book, 
+      pdfFile: `/uploads/${book.filename}`,
+      viewMode: 'reader' 
+    });
+  },
+
+  closeBook: () => {
+    set({ currentBook: null, pdfFile: null, viewMode: 'library', words: [], translation: '', selectedText: '' });
+  },
+
+  updateBookProgress: async (pageNumber, totalPages) => {
+    const { currentBook } = get();
+    if (!currentBook) return;
+
+    // Update locally for immediate UI response
+    set({ 
+      currentBook: { ...currentBook, currentPage: pageNumber, totalPages: totalPages || currentBook.totalPages } 
+    });
+
+    try {
+      await updateProgressApi(currentBook._id, pageNumber, totalPages);
+      // Background load library to keep grid up to date
+      getLibrary().then(data => set({ library: data }));
+    } catch (err) {
+      console.error('Failed to update progress', err);
+    }
+  },
+
+  deleteBook: async (id) => {
+    try {
+      await deleteBookApi(id);
+      await get().loadLibrary();
+      get().showNotification('success', 'Book removed from library.');
+    } catch {
+      get().showNotification('error', 'Failed to delete book.');
+    }
+  },
 
   // Process selected text with AI
   processAI: async (mode = 'all') => {
@@ -107,6 +194,41 @@ const useAppStore = create((set, get) => ({
     } catch (err) {
       set({ loading: false });
       get().showNotification('error', err?.response?.data?.error || 'AI processing failed.');
+    }
+  },
+
+  // Toggle OCR cropping overlay
+  toggleScan: () => set((state) => ({ scanActive: !state.scanActive, contextMenu: { visible: false, x: 0, y: 0 } })),
+
+  // Process Snipped Image using AI OCR
+  processImageSnippet: async (base64) => {
+    set({ loading: true, translation: '', words: [], selectedWordIds: new Set(), scanActive: false });
+    try {
+      const data = await (await import('../api/aiApi')).processImage(base64);
+
+      // Check which words are already in DB
+      const wordList = data.vocabulary.map((w) => w.word.toLowerCase());
+      let existingSet = new Set();
+
+      if (wordList.length > 0) {
+        const checkResult = await checkWordsApi(wordList);
+        existingSet = new Set(checkResult.existing);
+      }
+
+      const words = data.vocabulary.map((w) => ({
+        ...w,
+        word: w.word.toLowerCase(),
+        status: existingSet.has(w.word.toLowerCase()) ? 'saved' : 'new',
+      }));
+
+      set({
+        translation: data.translation_si,
+        words: words,
+        loading: false,
+      });
+    } catch (err) {
+      set({ loading: false });
+      get().showNotification('error', err?.response?.data?.error || 'OCR processing failed.');
     }
   },
 

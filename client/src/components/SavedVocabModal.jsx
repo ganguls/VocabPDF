@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import useAppStore from '../store/useAppStore';
+import WordExplanation from './WordExplanation';
 
 export default function SavedVocabModal() {
   const { savedVocabModalVisible, toggleSavedVocabModal, savedVocab, loadVocab } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [explainingWord, setExplainingWord] = useState(null);
 
   // Always refresh vocab list when the modal opens
   useEffect(() => {
     if (savedVocabModalVisible) {
       loadVocab();
       setSearchTerm('');
+      setExplainingWord(null);
     }
   }, [savedVocabModalVisible, loadVocab]);
 
@@ -33,17 +36,21 @@ export default function SavedVocabModal() {
         </div>
 
         <div className="modal-search">
-          <input
-            type="text"
-            className="vocab-search-input"
-            placeholder="Search saved words..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          {!explainingWord && (
+            <input
+              type="text"
+              className="vocab-search-input"
+              placeholder="Search saved words..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          )}
         </div>
 
         <div className="modal-body">
-          {savedVocab.length === 0 ? (
+          {explainingWord ? (
+            <WordExplanation word={explainingWord} onClose={() => setExplainingWord(null)} />
+          ) : savedVocab.length === 0 ? (
             <div className="modal-empty">
               <span className="empty-icon">📭</span>
               <p>You haven't saved any words yet.</p>
@@ -56,7 +63,11 @@ export default function SavedVocabModal() {
           ) : (
             <div className="vocab-grid">
               {filteredVocab.map((w) => (
-                <div key={w._id || w.word} className="vocab-grid-card">
+                <div 
+                  key={w._id || w.word} 
+                  className="vocab-grid-card clickable-card"
+                  onClick={() => setExplainingWord(w.word)}
+                >
                   <div className="vocab-grid-word">{w.word}</div>
                   <div className="vocab-grid-meanings">
                     <div className="meaning-row">

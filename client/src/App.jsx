@@ -3,14 +3,17 @@ import PDFViewer from './components/PDFViewer';
 import SidePanel from './components/SidePanel';
 import ContextMenu from './components/ContextMenu';
 import SavedVocabModal from './components/SavedVocabModal';
+import Library from './components/Library';
+import TableOfContents from './components/TableOfContents';
 import useAppStore from './store/useAppStore';
 import './App.css';
 
 export default function App() {
-  const { loadVocab, hideContextMenu, toggleSavedVocabModal } = useAppStore();
+  const { loadVocab, loadLibrary, hideContextMenu, toggleSavedVocabModal, viewMode, closeBook, tocVisible } = useAppStore();
 
   useEffect(() => {
     loadVocab();
+    loadLibrary();
   }, []);
 
   const handleGlobalClick = (e) => {
@@ -25,6 +28,11 @@ export default function App() {
       {/* Header */}
       <header className="app-header">
         <div className="header-brand">
+          {viewMode === 'reader' && (
+            <button className="back-to-library-btn" onClick={closeBook}>
+              ← Library
+            </button>
+          )}
           <span className="brand-icon">📘</span>
           <span className="brand-name">Vocabulary PDF Reader</span>
           <span className="brand-badge">AI Powered</span>
@@ -38,15 +46,30 @@ export default function App() {
       </header>
 
       {/* Main Layout */}
-      <main className="app-main">
-        <div className="pdf-panel">
-          <PDFViewer />
-        </div>
-        <div className="panel-divider"></div>
-        <div className="side-panel-wrapper">
-          <SidePanel />
-        </div>
-      </main>
+      {viewMode === 'library' ? (
+        <Library />
+      ) : (
+        <main className="app-main">
+          {tocVisible && (
+            <>
+              <div className="sidebar-left">
+                <div className="sidebar-left-header">
+                  <h2>📑 Book Outline</h2>
+                </div>
+                <TableOfContents />
+              </div>
+              <div className="panel-divider"></div>
+            </>
+          )}
+          <div className="pdf-panel">
+            <PDFViewer />
+          </div>
+          <div className="panel-divider"></div>
+          <div className="side-panel-wrapper">
+            <SidePanel />
+          </div>
+        </main>
+      )}
 
       {/* Global Context Menu */}
       <ContextMenu />

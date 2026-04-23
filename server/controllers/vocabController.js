@@ -1,4 +1,5 @@
 const Vocabulary = require('../models/Vocabulary');
+const { syncWordToNotion } = require('../services/notionService');
 
 // GET /api/vocab — return all saved words
 const getAllWords = async (req, res, next) => {
@@ -46,6 +47,7 @@ const saveWords = async (req, res, next) => {
       word: w.word.toLowerCase().trim(),
       meaning_en: w.meaning_en,
       meaning_si: w.meaning_si,
+      sentence: w.sentence || '', // ensure sentence is mapped if provided
     }));
 
     const wordList = normalizedWords.map((w) => w.word);
@@ -59,6 +61,13 @@ const saveWords = async (req, res, next) => {
     if (toInsert.length > 0) {
       await Vocabulary.insertMany(toInsert, { ordered: false });
       savedCount = toInsert.length;
+
+      // Trigger Notion sync asynchronously for all newly saved words
+      toInsert.forEach((word) => {
+        syncWordToNotion(word).catch((err) => 
+          console.error(`Notion sync background error for ${word.word}:`, err)
+        );
+      });
     }
 
     res.json({
