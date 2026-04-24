@@ -9,11 +9,20 @@ const uploadBook = async (req, res, next) => {
       return res.status(400).json({ error: 'No PDF file uploaded.' });
     }
 
-    const { title, totalPages } = req.body;
+    const { title, totalPages, coverImage } = req.body;
+
+    let coverImageFilename;
+    if (coverImage) {
+      const base64Data = coverImage.replace(/^data:image\/\w+;base64,/, "");
+      coverImageFilename = req.file.filename + '-cover.jpg';
+      const coverImagePath = path.join(__dirname, '..', 'uploads', coverImageFilename);
+      fs.writeFileSync(coverImagePath, base64Data, 'base64');
+    }
 
     const book = new Book({
       title: title || req.file.originalname.replace('.pdf', ''),
       filename: req.file.filename,
+      coverImage: coverImageFilename,
       totalPages: parseInt(totalPages, 10) || 1,
       currentPage: 1,
     });
@@ -74,6 +83,13 @@ const deleteBook = async (req, res, next) => {
     const filePath = path.join(__dirname, '..', 'uploads', book.filename);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
+    }
+
+    if (book.coverImage) {
+      const coverPath = path.join(__dirname, '..', 'uploads', book.coverImage);
+      if (fs.existsSync(coverPath)) {
+        fs.unlinkSync(coverPath);
+      }
     }
 
     // Delete DB record

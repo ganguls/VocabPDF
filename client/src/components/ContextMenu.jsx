@@ -27,8 +27,14 @@ export default function ContextMenu() {
 
   const handleAction = (mode) => {
     hideContextMenu();
-    processAI(mode);
+    if (mode === 'fast') {
+      useAppStore.getState().processFastTranslate();
+    } else {
+      processAI(mode);
+    }
   };
+
+  const isSingleWord = selectedText.trim().split(/\s+/).length === 1;
 
   return (
     <div
@@ -39,6 +45,12 @@ export default function ContextMenu() {
       <div className="context-menu-header">
         <span>"{selectedText.slice(0, 40)}{selectedText.length > 40 ? '…' : ''}"</span>
       </div>
+      {isSingleWord && (
+        <button className="context-item" onClick={() => handleAction('fast')}>
+          <span className="context-icon">⚡</span>
+          Fast Translate (Programmatic)
+        </button>
+      )}
       <button className="context-item" onClick={() => handleAction('all')}>
         <span className="context-icon">🤖</span>
         Ask AI (Translate + Vocab)

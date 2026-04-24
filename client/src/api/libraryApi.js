@@ -7,9 +7,12 @@ export const getLibrary = async () => {
   return response.data;
 };
 
-export const uploadBook = async (file) => {
+export const uploadBook = async (file, coverImage = null) => {
   const formData = new FormData();
   formData.append('pdf', file);
+  if (coverImage) {
+    formData.append('coverImage', coverImage);
+  }
   
   const response = await axios.post(`${API_URL}/upload`, formData, {
     headers: {

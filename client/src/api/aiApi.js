@@ -16,3 +16,8 @@ export const explainWord = async (word) => {
   const response = await axios.post(`${BASE_URL}/explain`, { word });
   return response.data;
 };
+
+export const processFastTranslate = async (text) => {
+  const response = await axios.post(`${BASE_URL}/fast-translate`, { text });
+  return response.data;
+};

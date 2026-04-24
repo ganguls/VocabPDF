@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { processText as processTextApi } from '../api/aiApi';
+import { processText as processTextApi, processFastTranslate as processFastTranslateApi } from '../api/aiApi';
 import { getVocab, checkWords as checkWordsApi, saveWords as saveWordsApi } from '../api/vocabApi';
 import { getLibrary, uploadBook as uploadBookApi, updateProgress as updateProgressApi, deleteBook as deleteBookApi } from '../api/libraryApi';
 
@@ -104,7 +104,38 @@ const useAppStore = create((set, get) => ({
   uploadBook: async (file) => {
     set({ loading: true });
     try {
-      const newBook = await uploadBookApi(file);
+      let coverImageBase64 = null;
+      try {
+        const fileReader = new FileReader();
+        const arrayBuffer = await new Promise((resolve, reject) => {
+          fileReader.onload = () => resolve(fileReader.result);
+          fileReader.onerror = reject;
+          fileReader.readAsArrayBuffer(file);
+        });
+
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+        
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        const page = await pdf.getPage(1);
+        
+        const viewport = page.getViewport({ scale: 0.5 });
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        coverImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+      } catch (err) {
+        console.error('Thumbnail generation failed', err);
+      }
+
+      const newBook = await uploadBookApi(file, coverImageBase64);
       await get().loadLibrary();
       get().showNotification('success', 'Book added to library!');
       
@@ -197,6 +228,22 @@ const useAppStore = create((set, get) => ({
     }
   },
 
+  // Process fast programmatic translation
+  processFastTranslate: async () => {
+    const { selectedText } = get();
+    if (!selectedText.trim()) return;
+
+    set({ loading: true, translation: '', words: [], selectedWordIds: new Set() });
+
+    try {
+      const data = await processFastTranslateApi(selectedText);
+      set({ translation: data.translation, loading: false });
+    } catch (err) {
+      set({ loading: false });
+      get().showNotification('error', 'Fast translation failed.');
+    }
+  },
+
   // Toggle OCR cropping overlay
   toggleScan: () => set((state) => ({ scanActive: !state.scanActive, contextMenu: { visible: false, x: 0, y: 0 } })),
 
@@ -256,6 +303,28 @@ const useAppStore = create((set, get) => ({
     } catch (err) {
       set({ saving: false });
       get().showNotification('error', 'Failed to save words.');
+    }
+  },
+
+  // Save a single word directly from the PDF or anywhere else
+  saveSingleWord: async (wordObj) => {
+    set({ saving: true });
+    try {
+      const result = await saveWordsApi([wordObj]);
+      
+      // Update local words status
+      set((state) => ({
+        words: state.words.map((w) =>
+          w.word === wordObj.word ? { ...w, status: 'saved' } : w
+        ),
+        saving: false,
+      }));
+
+      get().showNotification('success', `"${wordObj.word}" added to vocabulary.`);
+      await get().loadVocab();
+    } catch (err) {
+      set({ saving: false });
+      get().showNotification('error', 'Failed to save word.');
     }
   },
 }));

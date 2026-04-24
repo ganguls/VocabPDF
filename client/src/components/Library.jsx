@@ -79,7 +79,15 @@ export default function Library() {
                 </button>
                 
                 <div className="book-cover">
-                  <span className="cover-icon">📄</span>
+                  {book.coverImage ? (
+                    <img 
+                      src={`/uploads/${book.coverImage}`} 
+                      alt="Cover" 
+                      className="cover-image" 
+                    />
+                  ) : (
+                    <span className="cover-icon">📄</span>
+                  )}
                   <div className="cover-pct">{pct}%</div>
                 </div>
                 

@@ -9,6 +9,9 @@ const bookSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  coverImage: {
+    type: String,
+  },
   totalPages: {
     type: Number,
     required: true,

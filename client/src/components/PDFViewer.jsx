@@ -25,8 +25,12 @@ function highlightText(str, dictionary) {
     const regex = new RegExp(`\\b(${escapedWord})\\b`, 'gi');
     
     result = result.replace(regex, (match) => {
-      const meaning = dictionary.get(word) || '';
-      return `<mark class="vocab-highlight" data-meaning="${meaning}">${match}</mark>`;
+      const data = dictionary.get(word);
+      if (!data) return match;
+      const { meaning, saved } = data;
+      
+      const addBtn = !saved ? `<span class="add-vocab-btn" data-word="${word}" data-meaning="${meaning}" title="Add to My Vocab">✚</span>` : '';
+      return `<mark class="vocab-highlight ${saved ? 'saved' : 'unsaved'}" data-meaning="${meaning}">${match}${addBtn}</mark>`;
     });
   }
 
@@ -92,10 +96,12 @@ export default function PDFViewer() {
   const vocabDictionary = React.useMemo(() => {
     const dict = new Map();
     savedVocab.forEach(v => {
-      if (v.word) dict.set(v.word.toLowerCase(), v.meaning_si);
+      if (v.word) dict.set(v.word.toLowerCase(), { meaning: v.meaning_si, saved: true });
     });
     words.forEach(v => {
-      if (v.word) dict.set(v.word.toLowerCase(), v.meaning_si);
+      if (v.word && !dict.has(v.word.toLowerCase())) {
+        dict.set(v.word.toLowerCase(), { meaning: v.meaning_si, saved: v.status === 'saved' });
+      }
     });
     return dict;
   }, [savedVocab, words]);
@@ -157,6 +163,16 @@ export default function PDFViewer() {
     [setSelectedText, showContextMenu]
   );
 
+  const handlePdfClick = useCallback((e) => {
+    const btn = e.target.closest('.add-vocab-btn');
+    if (btn) {
+      e.stopPropagation();
+      const word = btn.getAttribute('data-word');
+      const meaning = btn.getAttribute('data-meaning');
+      useAppStore.getState().saveSingleWord({ word, meaning_en: '', meaning_si: meaning });
+    }
+  }, []);
+
   return (
     <div className="pdf-viewer-container">
       {!pdfFile ? (
@@ -194,6 +210,7 @@ export default function PDFViewer() {
           <div
             className="pdf-pages"
             ref={viewerRef}
+            onClick={handlePdfClick}
             onMouseUp={handleMouseUp}
             onContextMenu={handleContextMenu}
             style={{ position: 'relative' }}

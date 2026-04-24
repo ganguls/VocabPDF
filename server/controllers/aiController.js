@@ -17,7 +17,7 @@ const processText = async (req, res, next) => {
     const prompt = `You are a language assistant.
 
 For the given English text:
-1. Translate it into a natural mix of Sinhala and English. Do not translate the entire text into formal Sinhala. Keep the core technical or important English words as they are, and mix them seamlessly with Sinhala.
+1. Translate it into natural, fluent Sinhala. Ensure the entire translation is in Sinhala.
 2. Extract important or advanced vocabulary words from the text.
 3. For each word, provide:
    - English meaning
@@ -25,7 +25,7 @@ For the given English text:
 
 Return ONLY valid JSON in the following format:
 {
-  "translation": "Mixed Sinhala-English translation of full text",
+  "translation": "Sinhala translation of the full text",
   "words": [
     {
       "word": "string",
@@ -91,10 +91,10 @@ const processImage = async (req, res, next) => {
 
     const prompt = `
     You are an expert language OCR and extraction system. Look at the image provided, which is a snippet from a document.
-    Extract the main text visible in the image. Then, generate a translation using a natural mix of Sinhala and English (keeping important English words intact), and extract vocabulary from the text.
+    Extract the main text visible in the image. Then, generate a translation entirely in fluent Sinhala, and extract vocabulary from the text.
     Return ONLY valid JSON matching this schema:
     {
-      "translation_si": "The translation of the extracted text in a mix of Sinhala and English",
+      "translation_si": "The translation of the extracted text in Sinhala",
       "vocabulary": [
         { "word": "example", "meaning_en": "example meaning", "meaning_si": "උදාහරණය", "context": "example context" }
       ]
@@ -148,10 +148,10 @@ const explainWord = async (req, res, next) => {
       "word": "${word}",
       "partOfSpeech": "noun/verb/etc.",
       "explanation_en": "Detailed nuanced explanation in English.",
-      "explanation_si": "Detailed nuanced explanation using a natural mix of Sinhala and English (keeping key terms in English).",
+      "explanation_si": "Detailed nuanced explanation in fluent Sinhala.",
       "examples": [
-        { "en": "Example sentence 1", "si": "Translation of example 1 in mixed Sinhala/English" },
-        { "en": "Example sentence 2", "si": "Translation of example 2 in mixed Sinhala/English" }
+        { "en": "Example sentence 1", "si": "Translation of example 1 in Sinhala" },
+        { "en": "Example sentence 2", "si": "Translation of example 2 in Sinhala" }
       ],
       "synonyms": ["word1", "word2"]
     }
@@ -177,4 +177,24 @@ const explainWord = async (req, res, next) => {
   }
 };
 
-module.exports = { processText, processImage, explainWord };
+const fastTranslate = async (req, res, next) => {
+  try {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: 'Text is required for fast translation.' });
+    }
+
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=si&dt=t&q=${encodeURIComponent(text)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    const translation = data[0].map(item => item[0]).join('');
+
+    res.json({ translation });
+  } catch (error) {
+    console.error('[Fast Translate Error]', error.message);
+    res.status(500).json({ error: 'Failed to perform fast translation.' });
+  }
+};
+
+module.exports = { processText, processImage, explainWord, fastTranslate };
